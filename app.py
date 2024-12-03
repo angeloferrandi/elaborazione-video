@@ -44,32 +44,36 @@ def upload_video():
     if video_file.filename == '':
         return jsonify({"error": "Nessun file selezionato"}), 400
 
-    # Salva il file caricato
-    file_path = os.path.join(UPLOAD_FOLDER, video_file.filename)
-    video_file.save(file_path)
+    try:
+        # Salva il file caricato
+        file_path = os.path.join(UPLOAD_FOLDER, video_file.filename)
+        video_file.save(file_path)
 
-    # Percorso per il file elaborato
-    processed_path = os.path.join(PROCESSED_FOLDER, f"processed_{video_file.filename}")
+        # Percorso per il file elaborato
+        processed_path = os.path.join(PROCESSED_FOLDER, f"processed_{video_file.filename}")
 
-    # Processa il video
-    success = process_video(file_path, processed_path)
-    if not success:
-        return jsonify({"error": "Errore durante l'elaborazione del video"}), 500
+        # Processa il video
+        success = process_video(file_path, processed_path)
+        if not success:
+            return jsonify({"error": "Errore durante l'elaborazione del video"}), 500
 
-    # Restituisci il link per scaricare il video elaborato
-    return f'''
-        <!doctype html>
-        <html>
-        <head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Video Elaborato</title>
-        </head>
-        <body style="text-align: center;">
-            <h1>Video Elaborato con Successo!</h1>
-            <p><a href="/download/{os.path.basename(processed_path)}" style="font-size: 1.2em; color: blue; text-decoration: none;">Scarica il video elaborato</a></p>
-        </body>
-        </html>
-    '''
+        # Restituisci il link per scaricare il video elaborato
+        return f'''
+            <!doctype html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Video Elaborato</title>
+            </head>
+            <body style="text-align: center;">
+                <h1>Video Elaborato con Successo!</h1>
+                <p><a href="/download/{os.path.basename(processed_path)}" style="font-size: 1.2em; color: blue; text-decoration: none;">Scarica il video elaborato</a></p>
+            </body>
+            </html>
+        '''
+    except Exception as e:
+        print(f"Errore: {e}")
+        return jsonify({"error": "Errore durante il caricamento o elaborazione"}), 500
 
 @app.route('/download/<filename>')
 def download_file(filename):
@@ -134,5 +138,8 @@ def process_video(input_path, output_path):
         return False
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Porta configurata per Render
+    import os
+    port = int(os.environ.get("PORT", 5000))  # Porta di default 5000, oppure quella fornita da Render
+    app.run(host='0.0.0.0', port=port, debug=False)
 

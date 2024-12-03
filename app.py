@@ -5,7 +5,7 @@ import mediapipe as mp
 
 app = Flask(__name__)
 
-# Percorso per salvare temporaneamente i file caricati e processati
+# Percorso per salvare i file caricati e processati
 UPLOAD_FOLDER = "uploads"
 PROCESSED_FOLDER = "processed"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -110,11 +110,20 @@ def process_video(input_path, output_path):
     cap = cv2.VideoCapture(input_path)
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = None
+    frame_count = 0
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
+
+        frame_count += 1
+        # Processa solo ogni 5 frame
+        if frame_count % 5 != 0:
+            continue
+
+        # Ridimensiona il frame per risparmiare risorse
+        frame = cv2.resize(frame, (640, 360))
 
         # Converti il frame in RGB per MediaPipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

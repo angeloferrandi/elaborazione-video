@@ -1,3 +1,4 @@
 Flask
 mediapipe
 opencv-python-headless
+gunicorn

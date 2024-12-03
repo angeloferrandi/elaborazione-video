@@ -5,7 +5,7 @@ import mediapipe as mp
 
 app = Flask(__name__)
 
-# Percorso per salvare i file caricati e processati
+# Percorsi delle cartelle
 UPLOAD_FOLDER = "uploads"
 PROCESSED_FOLDER = "processed"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -24,39 +24,8 @@ def home():
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Carica Video</title>
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    text-align: center;
-                    margin: 0;
-                    padding: 0;
-                }
-                h1 {
-                    font-size: 1.8em;
-                    margin-top: 20px;
-                }
-                form {
-                    margin-top: 20px;
-                }
-                input[type="file"] {
-                    font-size: 1.2em;
-                }
-                button {
-                    font-size: 1.2em;
-                    margin-top: 10px;
-                    padding: 10px 20px;
-                    background-color: #4CAF50;
-                    color: white;
-                    border: none;
-                    border-radius: 5px;
-                    cursor: pointer;
-                }
-                button:hover {
-                    background-color: #45a049;
-                }
-            </style>
         </head>
-        <body>
+        <body style="text-align: center;">
             <h1>Carica un Video</h1>
             <form method="POST" action="/upload" enctype="multipart/form-data">
               <input type="file" name="video" accept="video/*">
@@ -68,10 +37,9 @@ def home():
 
 @app.route('/upload', methods=['POST'])
 def upload_video():
-    # Controlla se un file è stato caricato
     if 'video' not in request.files:
         return jsonify({"error": "Nessun file video caricato"}), 400
-    
+
     video_file = request.files['video']
     if video_file.filename == '':
         return jsonify({"error": "Nessun file selezionato"}), 400
@@ -80,72 +48,91 @@ def upload_video():
     file_path = os.path.join(UPLOAD_FOLDER, video_file.filename)
     video_file.save(file_path)
 
-    # Processa il video con MediaPipe
+    # Percorso per il file elaborato
     processed_path = os.path.join(PROCESSED_FOLDER, f"processed_{video_file.filename}")
-    process_video(file_path, processed_path)
 
-    # Redirigi alla pagina di conferma
+    # Processa il video
+    success = process_video(file_path, processed_path)
+    if not success:
+        return jsonify({"error": "Errore durante l'elaborazione del video"}), 500
+
+    # Restituisci il link per scaricare il video elaborato
     return f'''
         <!doctype html>
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Elaborazione Completata</title>
+            <title>Video Elaborato</title>
         </head>
-        <body>
-            <h1 style="font-size: 1.5em;">Video Elaborato con Successo!</h1>
-            <p>Scarica il video processato:</p>
-            <a href="/download/{os.path.basename(processed_path)}" 
-               style="font-size: 1.2em; text-decoration: none; color: blue;">Scarica il video</a>
+        <body style="text-align: center;">
+            <h1>Video Elaborato con Successo!</h1>
+            <p><a href="/download/{os.path.basename(processed_path)}" style="font-size: 1.2em; color: blue; text-decoration: none;">Scarica il video elaborato</a></p>
         </body>
         </html>
     '''
 
 @app.route('/download/<filename>')
 def download_file(filename):
-    # Restituisce il video elaborato per il download
+    # Restituisce il file elaborato per il download
     return send_file(os.path.join(PROCESSED_FOLDER, filename), as_attachment=True)
 
 def process_video(input_path, output_path):
-    cap = cv2.VideoCapture(input_path)
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = None
-    frame_count = 0
+    try:
+        cap = cv2.VideoCapture(input_path)
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out = None
+        frame_count = 0
 
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # Ottieni le dimensioni originali del video
+        original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        original_fps = cap.get(cv2.CAP_PROP_FPS)
 
-        frame_count += 1
-        # Processa solo ogni 5 frame
-        if frame_count % 5 != 0:
-            continue
+        # Calcola la nuova altezza e larghezza mantenendo le proporzioni
+        target_width = 640  # Larghezza desiderata
+        scale_factor = target_width / original_width
+        target_height = int(original_height * scale_factor)
 
-        # Ridimensiona il frame per risparmiare risorse
-        frame = cv2.resize(frame, (640, 360))
+        # Calcola il nuovo FPS per il video di output
+        processed_fps = original_fps / 5  # Processiamo 1 frame ogni 5
 
-        # Converti il frame in RGB per MediaPipe
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb_frame)
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        # Disegna i landmark sul frame originale
-        if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
-            )
+            frame_count += 1
+            # Processa 1 frame ogni 5
+            if frame_count % 5 != 0:
+                continue
 
-        # Inizializza il writer solo una volta
-        if out is None:
-            height, width, _ = frame.shape
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            # Ridimensiona mantenendo le proporzioni
+            frame = cv2.resize(frame, (target_width, target_height))
 
-        out.write(frame)
+            # Converti il frame in RGB per MediaPipe
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = pose.process(rgb_frame)
 
-    cap.release()
-    if out:
-        out.release()
+            # Disegna i landmark sul frame
+            if results.pose_landmarks:
+                mp_drawing.draw_landmarks(
+                    frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
+                )
+
+            # Inizializza il writer solo una volta
+            if out is None:
+                out = cv2.VideoWriter(output_path, fourcc, processed_fps, (target_width, target_height))
+
+            out.write(frame)
+
+        cap.release()
+        if out:
+            out.release()
+        return True
+    except Exception as e:
+        print(f"Errore durante l'elaborazione: {e}")
+        return False
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=10000, debug=False)
+

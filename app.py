@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_file
+from flask import Flask, request, jsonify, send_file
 import os
 import cv2
 import mediapipe as mp
@@ -18,15 +18,52 @@ mp_drawing = mp.solutions.drawing_utils
 
 @app.route('/')
 def home():
-    # Mostra una semplice pagina web per caricare video
     return '''
         <!doctype html>
-        <title>Carica Video</title>
-        <h1>Carica un Video</h1>
-        <form method="POST" action="/upload" enctype="multipart/form-data">
-          <input type="file" name="video" accept="video/*">
-          <button type="submit">Carica</button>
-        </form>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Carica Video</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    text-align: center;
+                    margin: 0;
+                    padding: 0;
+                }
+                h1 {
+                    font-size: 1.8em;
+                    margin-top: 20px;
+                }
+                form {
+                    margin-top: 20px;
+                }
+                input[type="file"] {
+                    font-size: 1.2em;
+                }
+                button {
+                    font-size: 1.2em;
+                    margin-top: 10px;
+                    padding: 10px 20px;
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                }
+                button:hover {
+                    background-color: #45a049;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Carica un Video</h1>
+            <form method="POST" action="/upload" enctype="multipart/form-data">
+              <input type="file" name="video" accept="video/*">
+              <button type="submit">Carica</button>
+            </form>
+        </body>
+        </html>
     '''
 
 @app.route('/upload', methods=['POST'])
@@ -47,13 +84,21 @@ def upload_video():
     processed_path = os.path.join(PROCESSED_FOLDER, f"processed_{video_file.filename}")
     process_video(file_path, processed_path)
 
-    # Restituisci il video elaborato
+    # Redirigi alla pagina di conferma
     return f'''
         <!doctype html>
-        <title>Elaborazione Completata</title>
-        <h1>Video Elaborato con Successo!</h1>
-        <p>Scarica il video processato:</p>
-        <a href="/download/{os.path.basename(processed_path)}" download>Scarica il video</a>
+        <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Elaborazione Completata</title>
+        </head>
+        <body>
+            <h1 style="font-size: 1.5em;">Video Elaborato con Successo!</h1>
+            <p>Scarica il video processato:</p>
+            <a href="/download/{os.path.basename(processed_path)}" 
+               style="font-size: 1.2em; text-decoration: none; color: blue;">Scarica il video</a>
+        </body>
+        </html>
     '''
 
 @app.route('/download/<filename>')
